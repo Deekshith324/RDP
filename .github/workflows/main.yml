@@ -1,9 +1,15 @@
+TALESCALE_AUTH_KEY
+
+
+
 name: RDP
+
 
 
 on:
 
   workflow_dispatch:
+
 
 
 jobs:
@@ -13,6 +19,7 @@ jobs:
     runs-on: windows-latest
 
     timeout-minutes: 3600
+
 
 
     steps:
@@ -36,11 +43,12 @@ jobs:
                              -Name "SecurityLayer" -Value 0 -Force
 
 
+
           # Remove any existing rule with the same name to avoid duplication
 
           netsh advfirewall firewall delete rule name="RDP-Tailscale"
 
-         
+          
 
           # For testing, allow any incoming connection on port 3389
 
@@ -49,9 +57,11 @@ jobs:
             dir=in action=allow protocol=TCP localport=3389
 
 
+
           # (Optional) Restart the Remote Desktop service to ensure changes take effect
 
           Restart-Service -Name TermService -Force
+
 
 
       - name: Create RDP User with Secure Password
@@ -94,11 +104,11 @@ jobs:
 
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
 
-         
+          
 
           echo "RDP_CREDS=User: RDP | Password: $password" >> $env:GITHUB_ENV
 
-         
+          
 
           if (-not (Get-LocalUser -Name "RDP")) {
 
@@ -109,6 +119,7 @@ jobs:
           }
 
 
+
       - name: Install Tailscale
 
         run: |
@@ -117,13 +128,14 @@ jobs:
 
           $installerPath = "$env:TEMP\tailscale.msi"
 
-         
+          
 
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
 
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
 
           Remove-Item $installerPath -Force
+
 
 
       - name: Establish Tailscale Connection
@@ -134,7 +146,7 @@ jobs:
 
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
 
-         
+          
 
           # Wait for Tailscale to assign an IP
 
@@ -152,7 +164,7 @@ jobs:
 
           }
 
-         
+          
 
           if (-not $tsIP) {
 
@@ -164,7 +176,7 @@ jobs:
 
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-     
+      
 
       - name: Verify RDP Accessibility
 
@@ -172,7 +184,7 @@ jobs:
 
           Write-Host "Tailscale IP: $env:TAILSCALE_IP"
 
-         
+          
 
           # Test connectivity using Test-NetConnection against the Tailscale IP on port 3389
 
@@ -189,6 +201,7 @@ jobs:
           Write-Host "TCP connectivity successful!"
 
 
+
       - name: Maintain Connection
 
         run: |
@@ -202,3 +215,15 @@ jobs:
           Write-Host "Password: $(echo $env:RDP_CREDS)"
 
           Write-Host "==================`n"
+
+          
+
+          # Keep runner active indefinitely (or until manually cancelled)
+
+          while ($true) {
+
+              Write-Host "[$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
+
+              Start-Sleep -Seconds 300
+
+          }
